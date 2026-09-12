@@ -1,3 +1,4 @@
+# RoboColetor + Bandeja + QuantidadeValida — enunciado, Seção 2.1.
 # RoboColetor + QuantidadeValida — enunciado, Seção 2.1.
 #
 # `Robo` (posição, __init_subclass__/_registro, avancar/girar, estrategia/modo,
@@ -13,85 +14,111 @@
 #   negativa nem passa do pedido.
 # - __str__/__repr__ (robô) e __len__ (bandeja — quantos itens já coletados).
 
-from celular_robo.modos import ModoColetando
+
 from celular_robo.robo_base import Robo
+from celular_robo.comandos import ComandoColeta
 from celular_robo.excecoes import PedidoInvalido
-from celular_robo.excecoes import PedidoInvalido
+from celular_robo.modelo_features import REQUER
+from celular_robo.persistencia import validar_pedido
 
 
-class QuantidadeValida:
+class Bandeja:
+   
 
-    def __set_name__(self, owner, name):
-        self.nome = "_" + name
+    def __init__(self):
+        self._itens = {}
 
-    def __get__(self, instance, owner):
-        if instance is None:
-            return self
-        return instance.__dict__.get(self.nome, 0)
+    def __len__(self):
+        return sum(self._itens.values())
 
-    def __set__(self, instance, valor):
-        if not isinstance(valor, int) or isinstance(valor, bool):
-            raise TypeError("quantidade precisa ser um inteiro")
-        if valor < 0:
-            raise ValueError("quantidade não pode ser negativa")
-        codinome = getattr(instance, "_item_em_validacao", None)
-        limite = getattr(instance, "_limite_total", None)
-        if limite is not None and valor > limite:
-            raise ValueError(
-                f"quantidade coletada excede o total do pedido ({limite})"
-            )
-        instance.__dict__[self.nome] = valor
+    def __iter__(self):
+        return iter(self._itens.items())
 
+    def __contains__(self, codinome):
+        return codinome in self._itens
+
+    def __repr__(self):
+        return f"Bandeja({dict(self._itens)!r})"
+
+    def quantidade_de(self, codinome):
         
+        return self._itens.get(codinome, 0)
+
+    def adicionar(self, codinome, quantidade):
+        
+        self._itens[codinome] = self._itens.get(codinome, 0) + quantidade
+
+    def remover(self, codinome, quantidade):
+        
+        atual = self._itens.get(codinome, 0)
+        nova = atual - quantidade
+        if nova <= 0:
+            self._itens.pop(codinome, None)
+        else:
+            self._itens[codinome] = nova
+
+
 class RoboColetor(Robo):
-    quantidade_coletada = QuantidadeValida()
+   
 
     def __init__(self, nome, **kwargs):
-        catalogo = kwargs.pop("catalogo", None)
         super().__init__(nome, **kwargs)
-        self.bandeja = {}
-        self.modo = ModoColetando()
-        self.pedido = None
-        self._limites_quantidade = {}
-        self._limite_total = None
-        self._item_em_validacao = None
-        self._historico_coleta = []
-        self._aprovado = False
-        self.catalogo = catalogo
+        self.bandeja = Bandeja()
+        self.historico_coleta = []
 
-    def carregar_pedido(self, pedido):
-        if self.catalogo is not None:
-            desconhecidos = {item.codinome for item in pedido.itens} - set(self.catalogo)
-            if desconhecidos:
-                raise PedidoInvalido(f"codinome não encontrado: {sorted(desconhecidos)}")
-        estrategia_nome = type(self.estrategia).__name__
-        for item in pedido.itens:
-            if item.fragil and estrategia_nome != "RotaComDuplaConferencia":
-                raise PedidoInvalido(f"item frágil exige dupla conferência: {item.codinome!r}")
-            if item.urgente and estrategia_nome != "RotaDireta":
-                raise PedidoInvalido(f"item urgente exige rota direta: {item.codinome!r}")
-        self.pedido = pedido
-        self._limites_quantidade = {
-            item.codinome: item.quantidade for item in pedido.itens
-        }
-        self._limite_total = sum(self._limites_quantidade.values())
-        self.bandeja.clear()
-        self.quantidade_coletada = 0
-        self._aprovado = False
+    def executar_comando(self, comando):
+       
+        sucesso = comando.executar(self)
+        if sucesso:
+            self.historico_coleta.append(comando)
+        return sucesso
 
-    def quantidade_do_item(self, codinome):
-        return self.bandeja.get(codinome, 0)
+    def desfazer_ultimo(self):
+       
+        if not self.historico_coleta:
+            return False
+        comando = self.historico_coleta.pop()
+        comando.desfazer(self)
+        return True
 
-    def adicionar_na_bandeja(self, codinome, quantidade):
-        limite = self._limites_quantidade.get(codinome)
-        if limite is None:
-            raise ValueError(f"item não pertence ao pedido: {codinome!r}")
-        atual = self.bandeja.get(codinome, 0)
-        nova = atual + quantidade
-        self._item_em_validacao = codinome
-        try:
-            self.quantidade_coletada = nova
-        finally:
-            self._item_em_validacao = None
-        self.bandeja[codinome] = nova
-        self._historico_coleta.append((codinome, quantidade))
+    def processar_pedido(self, pedido):
+    
+        validar_pedido(pedido)
+
+        itens = pedido["itens"]
+        for item in itens:
+            for flag in ("fragil", "urgente"):
+                if not item.get(flag):
+                    continue
+                exigido = REQUER.get(("item", flag), set())
+                if exigido and ("estrategia", self.estrategia.apelido) not in exigido:
+                    exigidas = sorted(valor for _, valor in exigido)
+                    raise PedidoInvalido(
+                        f"item {item['codinome']!r} tem {flag}=True, que exige "
+                        f"estratégia {exigidas} — robô está configurado com "
+                        f"{self.estrategia.apelido!r}"
+                    )
+
+        for item in itens:
+            comando = ComandoColeta(item["codinome"], tuple(item["posicao"]), item["quantidade"])
+            self.executar_comando(comando)
+
+        completo = all(
+            self.bandeja.quantidade_de(item["codinome"]) >= item["quantidade"]
+            for item in itens
+        )
+        if completo:
+            self.notificar("bandeja_pronta", lote=pedido.get("lote"))
+        return completo
+
+    def __repr__(self):
+        return (
+            f"RoboColetor({self.nome!r}, x={self.x}, y={self.y}, "
+            f"coletados={len(self.bandeja)})"
+        )
+
+    def __str__(self):
+        return (
+            f"{self.nome} em ({self.x}, {self.y}) — "
+            f"{len(self.bandeja)} unidade(s) na bandeja"
+        )

@@ -7,26 +7,37 @@
 # TODO: implemente aqui. A transição ModoColetando -> ModoAguardandoVerificacao
 # acontece via Observer (não é o próprio modo que decide sozinho), quando a
 # bandeja completa.
-from celular_robo.modos_base import ModoOperacao
 
+from celular_robo.modos_base import ModoOperacao
+from celular_robo.observadores_base import Observador
+from celular_robo.robo import Bandeja
 
 class ModoColetando(ModoOperacao):
+   
     def mover(self, robo):
-        comando = getattr(robo, "_comando_atual", None)
-        return robo.estrategia.mover(robo, comando)
-
-    def iniciar_coleta(self, robo, comando):
-        robo._comando_atual = comando
-        try:
-            return self.mover(robo)
-        finally:
-            robo.__dict__.pop("_comando_atual", None)
+        return robo.estrategia.mover(robo)
 
 
-class ModoAguardarVerificacao(ModoOperacao):
-    def mover(self, robo):
-        print(f"{robo.nome} aguarda a verificação da equipe de testes.")
+class ModoAguardandoVerificacao(ModoOperacao):
+   
+
+    def mover(self, robo): # type: ignore
+        print(f"{robo.nome} aguarda verificação da equipe de testes — não pode coletar agora.")
         return False
 
-    def iniciar_coleta(self, robo, comando):
-        raise RuntimeError("não é possível iniciar nova coleta antes da aprovação da bandeja")
+    def aprovar(self, robo):
+       
+        robo.bandeja = Bandeja()
+        robo.notificar("retirada_aprovada")
+        robo.modo = ModoColetando()
+
+    def rejeitar(self, robo):
+        robo.notificar("pedido_rejeitado")
+        robo.modo = ModoColetando()
+
+
+class MonitorColeta(Observador):
+
+    def atualizar(self, evento, **dados):
+        if evento == "bandeja_pronta":
+            dados["robo"].modo = ModoAguardandoVerificacao()
