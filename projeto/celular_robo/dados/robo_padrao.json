@@ -1,0 +1,6 @@
+{
+    "tipo": "RoboColetor",
+    "nome": "Coletor-1",
+    "estrategia": "direta",
+    "area": "centro_padrao"
+}

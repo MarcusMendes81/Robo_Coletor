@@ -1,0 +1,7 @@
+{
+    "lote": "Lote de Testes",
+    "itens": [
+        {"codinome": "Projeto Aurora", "posicao": [3, 4], "quantidade": 2},
+        {"codinome": "Projeto Vesper", "posicao": [7, 2], "quantidade": 1}
+    ]
+}
