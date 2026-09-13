@@ -14,13 +14,11 @@
 #   negativa nem passa do pedido.
 # - __str__/__repr__ (robô) e __len__ (bandeja — quantos itens já coletados).
 
-
 from celular_robo.robo_base import Robo
 from celular_robo.comandos import ComandoColeta
 from celular_robo.excecoes import PedidoInvalido
 from celular_robo.modelo_features import REQUER
 from celular_robo.persistencia import validar_pedido
-
 
 class Bandeja:
    

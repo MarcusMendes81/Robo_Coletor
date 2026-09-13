@@ -5,9 +5,11 @@
 # (montar_robo_de_config/montar_frota_de_json), adaptado: um arquivo
 # configura o robô (tipo, estratégia, área), outro traz o pedido de coleta.
 import json
+from celular_robo.comandos import ComandoColeta
 from celular_robo.fabrica import criar_robo_configurado
 
 from celular_robo.excecoes import ConfiguracaoInvalida, PedidoInvalido
+from celular_robo.modelo_features import REQUER
 
 CATALOGO_DISPOSITIVOS = {
     "Projeto Kanon": {"posicao": (3, 4), "estoque": 5},
@@ -75,3 +77,32 @@ def montar_pedido_de_json(caminho):
 
     validar_pedido(pedido)
     return pedido
+
+def processar_pedido(robo, pedido):
+   
+    validar_pedido(pedido)
+
+    itens = pedido["itens"]
+    for item in itens:
+        for flag in ("fragil", "urgente"):
+            if not item.get(flag):
+                continue
+            exigido = REQUER.get(("item", flag), set())
+            if exigido and ("estrategia", robo.estrategia.apelido) not in exigido:
+                exigidas = sorted(valor for _, valor in exigido)
+                raise PedidoInvalido(
+                    f"item {item['codinome']!r} tem {flag}=True, que exige "
+                    f"estratégia {exigidas} — robô está configurado com "
+                    f"{robo.estrategia.apelido!r}"
+                )
+
+    for item in itens:
+        comando = ComandoColeta(item["codinome"], tuple(item["posicao"]), item["quantidade"])
+        robo.executar_comando(comando)
+
+    completo = all(
+        robo.bandeja.quantidade_de(item["codinome"]) >= item["quantidade"] for item in itens
+    )
+    if completo:
+        robo.notificar("bandeja_pronta", lote=pedido.get("lote"))
+    return completo
