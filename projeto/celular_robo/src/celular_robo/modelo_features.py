@@ -5,8 +5,8 @@
 # Modelo de features / LPS — enunciado, Seção 2.4.
 
 from celular_robo.robo_base import Robo
-from celular_robo.estrategias import RotaColeta
 from celular_robo import robo as _robo
+from celular_robo.estrategias import RotaColeta
 from celular_robo.excecoes import ConfiguracaoInvalida
 
 

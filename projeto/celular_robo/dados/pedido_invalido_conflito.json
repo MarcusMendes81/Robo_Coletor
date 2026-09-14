@@ -1,7 +1,7 @@
 {
     "lote": "Lote com conflito",
     "itens": [
-        {"codinome": "Projeto Aurora", "posicao": [3, 4], "quantidade": 1, "urgente": true},
-        {"codinome": "Projeto Vesper", "posicao": [7, 2], "quantidade": 1, "fragil": true}
+        {"codinome": "Projeto Kannon", "posicao": [3, 4], "quantidade": 1, "urgente": true},
+        {"codinome": "Projeto Dhoko", "posicao": [7, 2], "quantidade": 1, "fragil": true}
     ]
 }

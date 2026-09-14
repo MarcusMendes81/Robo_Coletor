@@ -15,10 +15,6 @@
 # - __str__/__repr__ (robô) e __len__ (bandeja — quantos itens já coletados).
 
 from celular_robo.robo_base import Robo
-from celular_robo.comandos import ComandoColeta
-from celular_robo.excecoes import PedidoInvalido
-from celular_robo.modelo_features import REQUER
-from celular_robo.persistencia import validar_pedido
 
 class Bandeja:
    
@@ -79,36 +75,7 @@ class RoboColetor(Robo):
         comando.desfazer(self)
         return True
 
-    def processar_pedido(self, pedido):
     
-        validar_pedido(pedido)
-
-        itens = pedido["itens"]
-        for item in itens:
-            for flag in ("fragil", "urgente"):
-                if not item.get(flag):
-                    continue
-                exigido = REQUER.get(("item", flag), set())
-                if exigido and ("estrategia", self.estrategia.apelido) not in exigido:
-                    exigidas = sorted(valor for _, valor in exigido)
-                    raise PedidoInvalido(
-                        f"item {item['codinome']!r} tem {flag}=True, que exige "
-                        f"estratégia {exigidas} — robô está configurado com "
-                        f"{self.estrategia.apelido!r}"
-                    )
-
-        for item in itens:
-            comando = ComandoColeta(item["codinome"], tuple(item["posicao"]), item["quantidade"])
-            self.executar_comando(comando)
-
-        completo = all(
-            self.bandeja.quantidade_de(item["codinome"]) >= item["quantidade"]
-            for item in itens
-        )
-        if completo:
-            self.notificar("bandeja_pronta", lote=pedido.get("lote"))
-        return completo
-
     def __repr__(self):
         return (
             f"RoboColetor({self.nome!r}, x={self.x}, y={self.y}, "

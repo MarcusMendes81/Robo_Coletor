@@ -12,7 +12,7 @@ from celular_robo.excecoes import ConfiguracaoInvalida, PedidoInvalido
 from celular_robo.modelo_features import REQUER
 
 CATALOGO_DISPOSITIVOS = {
-    "Projeto Kanon": {"posicao": (3, 4), "estoque": 5},
+    "Projeto Kannon": {"posicao": (3, 4), "estoque": 5},
     "Projeto Dhoko": {"posicao": (7, 2), "estoque": 3},
     "Projeto Shaka": {"posicao": (2, 8), "estoque": 10},
 }
@@ -33,7 +33,7 @@ def validar_pedido(pedido):
         urgente = bool(item.get("urgente", False))
 
         if codinome not in CATALOGO_DISPOSITIVOS:
-            raise PedidoInvalido()
+            raise PedidoInvalido(f"codinome {codinome!r} não encontrado")
 
         estoque = CATALOGO_DISPOSITIVOS[codinome]["estoque"]
         if quantidade > estoque:

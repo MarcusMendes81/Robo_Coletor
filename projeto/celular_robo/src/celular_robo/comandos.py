@@ -1,4 +1,4 @@
-# Command — ComandoColeta — enunciado, Seção 2.3.
+    # Command — ComandoColeta — enunciado, Seção 2.3.
 #
 # Herde de `Comando` (comandos_base.py — ABC com registro automático):
 #
@@ -11,48 +11,69 @@
 from celular_robo.comandos_base import Comando
 
 
+class QuantidadeValida:
+    
+
+    def __init__(self, limite_attr):
+        self.limite_attr = limite_attr
+
+    def __set_name__(self, owner, name):
+        self.nome_publico = name
+        self.nome = "_" + name
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        return instance.__dict__.get(self.nome, 0)
+
+    def __set__(self, instance, valor):
+        if valor < 0:
+            raise ValueError(f"{self.nome_publico}={valor} não pode ser negativo")
+        limite = getattr(instance, self.limite_attr, None)
+        if limite is not None and valor > limite:
+            raise ValueError(
+                f"{self.nome_publico}={valor} excede a quantidade pedida ({limite})"
+            )
+        instance.__dict__[self.nome] = valor
+
+
 class ComandoColeta(Comando):
-    def __init__(self, codinome, posicao, quantidade, fragil=False, urgente=False):
+   
+
+    quantidade_coletada = QuantidadeValida(limite_attr="quantidade")
+
+    def __init__(self, codinome, posicao, quantidade):
         self.codinome = codinome
         self.posicao = tuple(posicao)
         self.quantidade = quantidade
-        self.fragil = bool(fragil)
-        self.urgente = bool(urgente)
-        self._executado = 0
+        self.quantidade_coletada = 0
 
-    def executar(self, robo): # type: ignore
-        if not getattr(robo, "pedido", None):
-            raise ValueError("robô não possui pedido carregado")
-        if not isinstance(robo.modo, __import__("celular_robo.modos", fromlist=["ModoColetando"]).ModoColetando):
-            raise RuntimeError("robô não está no modo de coleta")
-        robo._comando_atual = self
-        try:
-            robo.estrategia.mover(robo, self)
-            robo.adicionar_na_bandeja(self.codinome, self.quantidade)
-            self._executado = self.quantidade
-            robo.notificar(
-                "coleta",
-                codinome=self.codinome,
-                quantidade=self.quantidade,
-                posicao=self.posicao,
-            )
-            if robo.bandeja_completa():
-                robo.notificar("bandeja_pronta", pedido=robo.pedido)
-            return True
-        finally:
-            robo.__dict__.pop("_comando_atual", None)
 
-    def desfazer(self, robo):
-        if self._executado <= 0:
+    def executar(self, robo):
+        chegou = robo.estrategia.mover_ate(robo, self.posicao)
+        if not chegou:
+            robo.notificar("coleta_falhou", codinome=self.codinome, motivo="obstaculo")
             return False
-        robo.remover_da_bandeja(self.codinome, self._executado)
-        robo.notificar(
-            "coleta_desfeita",
-            codinome=self.codinome,
-            quantidade=self._executado,
-        )
-        self._executado = 0
+
+        if not robo.estrategia.confirmar_coleta(robo, self.codinome):
+            robo.notificar("coleta_falhou", codinome=self.codinome, motivo="revalidacao")
+            return False
+
+        robo.bandeja.adicionar(self.codinome, self.quantidade)
+        self.quantidade_coletada = self.quantidade
+        robo.notificar("item_coletado", codinome=self.codinome, quantidade=self.quantidade)
         return True
 
+    def desfazer(self, robo):
+        """Remove o item da bandeja e decrementa a contagem coletada."""
+        robo.bandeja.remover(self.codinome, self.quantidade_coletada)
+        robo.notificar(
+            "coleta_desfeita", codinome=self.codinome, quantidade=self.quantidade_coletada
+        )
+        self.quantidade_coletada = 0
+
     def __repr__(self):
-        return f"ComandoColeta({self.codinome!r}, {self.posicao!r}, {self.quantidade})"
+        return (
+            f"ComandoColeta({self.codinome!r}, posicao={self.posicao}, "
+            f"quantidade={self.quantidade}, coletada={self.quantidade_coletada})"
+        )
